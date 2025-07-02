@@ -2,6 +2,7 @@
 
 Инстанс БД запущен в docker.
 
+![image](https://github.com/user-attachments/assets/607f7c56-dc6a-4f90-965d-2faec06379d4)
 
 
 ## Описание команд
