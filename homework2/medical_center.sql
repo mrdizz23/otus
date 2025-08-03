@@ -79,3 +79,8 @@ ALTER TABLE "medical_history" ADD CONSTRAINT "medical_history_fk3" FOREIGN KEY (
 
 ALTER TABLE "medical_history" ADD CONSTRAINT "medical_history_fk4" FOREIGN KEY ("booking_id") REFERENCES "bookings"("id");
 ALTER TABLE "calls" ADD CONSTRAINT "calls_fk3" FOREIGN KEY ("booking_id") REFERENCES "bookings"("id");
+
+CREATE INDEX "idx_patients_full_name" ON "patients" ("surname", "name");
+CREATE INDEX "idx_patients_phone" ON "patients" ("phone");
+CREATE INDEX "idx_doctors_full_name" ON "doctors" ("surname", "name") where ("is_active");
+CREATE INDEX "idx_calls_phone" ON "calls" ("phone");
