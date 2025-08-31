@@ -50,4 +50,30 @@
 
 ## Логическая репликация
 
+1. В той же сети создаем 2 контейнера - для мастера и для реплики (порт форвард в 5434) с wal-level=logical
+
+<img width="1262" height="90" alt="image" src="https://github.com/user-attachments/assets/615d8567-326b-42a8-ba9b-5357a7474633" />
+
+2. На мастере создаем базу данных test_master, таблицу, инсертим в нее данные и создаем публикацию
+
+<img width="768" height="461" alt="image" src="https://github.com/user-attachments/assets/0d403bf1-6fea-4c1a-a5a6-27b1d58fe6dc" />
+
+3. На реплике создаем базу данных test_replica и создаем аналогичную таблицу без данных
+
+<img width="589" height="438" alt="image" src="https://github.com/user-attachments/assets/279ac0ed-1d02-4f42-ba43-eb05895be0a7" />
+
+4. Создаем подписку и смотрим реплицированные данные
+
+<img width="1351" height="161" alt="image" src="https://github.com/user-attachments/assets/a5cb853c-15e0-489a-9f55-f4c6183964b6" />
+
+5. Для чистоты эксперимента добавим на мастере еще одну строку в эту таблицу и проверим репликацию
+
+<img width="645" height="575" alt="image" src="https://github.com/user-attachments/assets/ede4ff96-edb9-4465-8326-63e90135ffa2" />
+
+
+
+
+
+
+
 
