@@ -86,7 +86,12 @@ conn.commit()
 
 #### Запускаю контейнер mysql в докере, подключаюсь к нему и создаю /var/lib/mysql-files/users.csv
 
+<img width="966" height="219" alt="image" src="https://github.com/user-attachments/assets/f61ac4f0-c4fd-426c-9ba9-debac4560f4a" />
+
+
 #### Подключаюсь к инстансу, создаю БД, таблицу users и загружаю в нее данные
+
+<img width="1045" height="749" alt="image" src="https://github.com/user-attachments/assets/fc3eb1d9-2605-475f-a1af-95bf9a35834f" />
 
 
 > По заданибю со * утилиты mysqlimport в рекомендованном образе я не нашел, но если бы она была, импорт из того же csv делал бы так
