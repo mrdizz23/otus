@@ -46,7 +46,7 @@ conn.commit()
 SELECT
   st.address,
   sa.sale_amount,
-  DATE_FORMAT(sa.date, '%Y-%M') AS year_month,
+  DATE_FORMAT(sa.date, '%Y-%M') AS ym,
   SUM(sa.sale_amount) OVER(PARTITION BY DATE_FORMAT(sa.date, '%Y-%M') ORDER BY sa.sale_amount, sa.sale_id) AS total_price
 FROM sales sa JOIN stores st USING (store_id);
 ```
@@ -54,16 +54,35 @@ FROM sales sa JOIN stores st USING (store_id);
 ### 3. Запрос, который выведет 7-дневное скользящее среднее за последний месяц по самому плодовитому магазину
 
 ```
-WITH effective_store AS(
+-- определяю самый плодовитый магазин
+WITH effective_store AS (
   SELECT store_id, SUM(sale_amount) AS sum_amount
   FROM sales GROUP BY store_id ORDER BY sum_amount DESC LIMIT 1
+),
+-- вычлиняю данные по этому магизину за последний месяц 
+last_month AS (
+SELECT DATE(sa.date) as day, sale_amount FROM sales sa
+  JOIN effective_store es ON sa.store_id = es.store_id
+  WHERE sa.date BETWEEN (CURRENT_DATE() - INTERVAL 1 MONTH) AND CURRENT_DATE()
+  ORDER BY sa.date
+),
+-- группирую продажи по дням
+day_result AS (
+  SELECT day, SUM(sale_amount) as amount
+  FROM last_month GROUP BY day ORDER BY day
 )
-SELECT sa.* FROM sales sa
-JOIN effective_store es ON sa.store_id = es.store_id
-WHERE sa.date BETWEEN (CURRENT_DATE() - INTERVAL 1 MONTH) AND CURRENT_DATE()
-ORDER BY sa.date;
+-- формирую 7-дневное скользящее среднее
+SELECT day,
+  AVG(amount) OVER (
+      ORDER BY day ASC
+      ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+  ) AS moving_avg_7days
+  FROM day_result
+ORDER BY day;
 ```
+
 
 ### 4. Граничные случаи
 
-По нарастающему итогу учет возможную одинаковую цену, включив первичный ключ в сортировкку оконной функции
+По нарастающему итогу учет возможную одинаковую цену, включив первичный ключ в сортировкку оконной функции.  
+По скользящему среднему возможны были ситуации, когда за одним днем закреплены несколько продаж - сгруппировал их переж вычислением скользящего среднего.
