@@ -138,7 +138,7 @@ mysql> explain analyze SELECT
 
 ### 2. Анализ планов и выявление слабых мест
 
-Table scan on products: запрос два раза выполняет полное сканирования таблицы, что негативно влияет на производительность. Необходми добавить составной индекс на поля category и price
+Table scan on products: запрос выполняет полное сканирования таблицы, что негативно влияет на производительность. Необходми добавить составной индекс на поля category и price
 
 ```
 mysql> CREATE INDEX idx_category_price ON products(category, price);
