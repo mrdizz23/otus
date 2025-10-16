@@ -37,6 +37,21 @@ enforce_gtid_consistency = ON
 2. Подключаюсь к инстансу мастера, смотрю GTID, создаю пользователя для репликации и даю ему нужные привелегии
 
 ```
+[dizz@MUR-PC-3009-B2C ~]$ docker exec -it mysql-master mysql -u root -p123456
+mysql: [Warning] Using a password on the command line interface can be insecure.
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 12
+Server version: 8.0.43-34 Percona Server (GPL), Release 34, Revision e2841f91
+
+Copyright (c) 2009-2025 Percona LLC and/or its affiliates
+Copyright (c) 2000, 2025, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
 mysql> show binary logs;
 +---------------+-----------+-----------+
 | Log_name      | File_size | Encrypted |
