@@ -308,6 +308,32 @@ mysql: [Warning] Using a password on the command line interface can be insecure.
 | testdb                        |
 +-------------------------------+
 ```
-5. Проверяю работы репликации через создание базы данных (слева мастер, справа - реплика)
+5. Поднимаю еще один контейнер с mysql-router и проверяю работу балансировщика
 
-<img width="1332" height="824" alt="image" src="https://github.com/user-attachments/assets/3a3bb408-31b1-4e30-a764-c807ac31a9eb" />
+```
+[dizz@MUR-PC-3009-B2C ~]$ docker run --rm --name mysql-router --network=mysql -p 6446:6446 -p 6447:6447 -e MYSQL_HOST=mysql-node1 -e MYSQL_PORT=3306 -e MYSQL_USER=root -e MYSQL_PASSWORD=123456 -e MYSQL_INNODB_CLUSTER_MEMBERS=3 -d mysql/mysql-router
+30efd01fa1adcc0072d5066482d66a4e3b1ea1474e3874d72e8fb8b33142aac2
+[dizz@MUR-PC-3009-B2C ~]$ docker exec -it mysql-node1 bash
+[mysql@1ed9eef1f6e2 /]$ mysql -u root -h mysql-router --port 6446 -p123456 -e "select @@hostname;"
+mysql: [Warning] Using a password on the command line interface can be insecure.
++--------------+
+| @@hostname   |
++--------------+
+| 1ed9eef1f6e2 |
++--------------+
+[mysql@1ed9eef1f6e2 /]$ mysql -u root -h mysql-router --port 6447 -p123456 -e "select @@hostname;"
+mysql: [Warning] Using a password on the command line interface can be insecure.
++--------------+
+| @@hostname   |
++--------------+
+| 7c32a9d06978 |
++--------------+
+[mysql@1ed9eef1f6e2 /]$ mysql -u root -h mysql-router --port 6447 -p123456 -e "select @@hostname;"
+mysql: [Warning] Using a password on the command line interface can be insecure.
++--------------+
+| @@hostname   |
++--------------+
+| e518101423ab |
++--------------+
+[mysql@1ed9eef1f6e2 /]$
+```
