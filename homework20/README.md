@@ -308,7 +308,7 @@ mysql: [Warning] Using a password on the command line interface can be insecure.
 | testdb                        |
 +-------------------------------+
 ```
-5. Поднимаю еще один контейнер с mysql-router и проверяю работу балансировщика
+5. Поднимаю еще один контейнер с mysql-router и проверяю работу балансировщика по разным портам
 
 ```
 [dizz@MUR-PC-3009-B2C ~]$ docker run --rm --name mysql-router --network=mysql -p 6446:6446 -p 6447:6447 -e MYSQL_HOST=mysql-node1 -e MYSQL_PORT=3306 -e MYSQL_USER=root -e MYSQL_PASSWORD=123456 -e MYSQL_INNODB_CLUSTER_MEMBERS=3 -d mysql/mysql-router
@@ -336,4 +336,134 @@ mysql: [Warning] Using a password on the command line interface can be insecure.
 | e518101423ab |
 +--------------+
 [mysql@1ed9eef1f6e2 /]$
+```
+6. Ручной фейловер, смотрю текйщий статус инстансов кластера, останавливаю контейнер mysql-node3 и снова получаю статус
+
+```
+[dizz@MUR-PC-3009-B2C ~]$ docker exec -it mysql-node1 mysqlsh root@mysql-node1:3306
+Cannot set LC_ALL to locale en_US.UTF-8: No such file or directory
+MySQL Shell 8.0.43
+
+Copyright (c) 2016, 2025, Oracle and/or its affiliates.
+Oracle is a registered trademark of Oracle Corporation and/or its affiliates.
+Other names may be trademarks of their respective owners.
+
+Type '\help' or '\?' for help; '\quit' to exit.
+Creating a session to 'root@mysql-node1:3306'
+Fetching schema names for auto-completion... Press ^C to stop.
+Your MySQL connection id is 1488
+Server version: 8.0.43-34 Percona Server (GPL), Release 34, Revision e2841f91
+No default schema selected; type \use <schema> to set one.
+ MySQL  mysql-node1:3306 ssl  JS > cluster = dba.getCluster();
+<Cluster:my_first_cluster>
+ MySQL  mysql-node1:3306 ssl  JS > cluster.status();
+{
+    "clusterName": "my_first_cluster",
+    "defaultReplicaSet": {
+        "name": "default",
+        "primary": "1ed9eef1f6e2:3306",
+        "ssl": "REQUIRED",
+        "status": "OK",
+        "statusText": "Cluster is ONLINE and can tolerate up to ONE failure.",
+        "topology": {
+            "1ed9eef1f6e2:3306": {
+                "address": "1ed9eef1f6e2:3306",
+                "memberRole": "PRIMARY",
+                "mode": "R/W",
+                "readReplicas": {},
+                "replicationLag": "applier_queue_applied",
+                "role": "HA",
+                "status": "ONLINE",
+                "version": "8.0.43"
+            },
+            "7c32a9d06978:3306": {
+                "address": "7c32a9d06978:3306",
+                "memberRole": "SECONDARY",
+                "mode": "R/O",
+                "readReplicas": {},
+                "replicationLag": "applier_queue_applied",
+                "role": "HA",
+                "status": "ONLINE",
+                "version": "8.0.43"
+            },
+            "e518101423ab:3306": {
+                "address": "e518101423ab:3306",
+                "memberRole": "SECONDARY",
+                "mode": "R/O",
+                "readReplicas": {},
+                "replicationLag": "applier_queue_applied",
+                "role": "HA",
+                "status": "ONLINE",
+                "version": "8.0.43"
+            }
+        },
+        "topologyMode": "Single-Primary"
+    },
+    "groupInformationSourceMember": "1ed9eef1f6e2:3306"
+}
+ MySQL  mysql-node1:3306 ssl  JS >
+Bye!
+[dizz@MUR-PC-3009-B2C ~]$ docker stop mysql-node3
+mysql-node3
+[dizz@MUR-PC-3009-B2C ~]$ docker exec -it mysql-node1 mysqlsh root@mysql-node1:3306
+Cannot set LC_ALL to locale en_US.UTF-8: No such file or directory
+MySQL Shell 8.0.43
+
+Copyright (c) 2016, 2025, Oracle and/or its affiliates.
+Oracle is a registered trademark of Oracle Corporation and/or its affiliates.
+Other names may be trademarks of their respective owners.
+
+Type '\help' or '\?' for help; '\quit' to exit.
+Creating a session to 'root@mysql-node1:3306'
+Fetching schema names for auto-completion... Press ^C to stop.
+Your MySQL connection id is 1586
+Server version: 8.0.43-34 Percona Server (GPL), Release 34, Revision e2841f91
+No default schema selected; type \use <schema> to set one.
+ MySQL  mysql-node1:3306 ssl  JS > cluster = dba.getCluster();
+<Cluster:my_first_cluster>
+ MySQL  mysql-node1:3306 ssl  JS > cluster.status();
+{
+    "clusterName": "my_first_cluster",
+    "defaultReplicaSet": {
+        "name": "default",
+        "primary": "1ed9eef1f6e2:3306",
+        "ssl": "REQUIRED",
+        "status": "OK_NO_TOLERANCE_PARTIAL",
+        "statusText": "Cluster is NOT tolerant to any failures. 1 member is not active.",
+        "topology": {
+            "1ed9eef1f6e2:3306": {
+                "address": "1ed9eef1f6e2:3306",
+                "memberRole": "PRIMARY",
+                "mode": "R/W",
+                "readReplicas": {},
+                "replicationLag": "applier_queue_applied",
+                "role": "HA",
+                "status": "ONLINE",
+                "version": "8.0.43"
+            },
+            "7c32a9d06978:3306": {
+                "address": "7c32a9d06978:3306",
+                "memberRole": "SECONDARY",
+                "mode": "n/a",
+                "readReplicas": {},
+                "role": "HA",
+                "shellConnectError": "MySQL Error 2005: Could not open connection to '7c32a9d06978:3306': Unknown MySQL server host '7c32a9d06978' (-2)",
+                "status": "(MISSING)"
+            },
+            "e518101423ab:3306": {
+                "address": "e518101423ab:3306",
+                "memberRole": "SECONDARY",
+                "mode": "R/O",
+                "readReplicas": {},
+                "replicationLag": "applier_queue_applied",
+                "role": "HA",
+                "status": "ONLINE",
+                "version": "8.0.43"
+            }
+        },
+        "topologyMode": "Single-Primary"
+    },
+    "groupInformationSourceMember": "1ed9eef1f6e2:3306"
+}
+ MySQL  mysql-node1:3306 ssl  JS >
 ```
