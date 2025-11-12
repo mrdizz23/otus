@@ -16,5 +16,26 @@
 
 ### Полнотекстовый индекс
 
-Для поиска по ключевым словам в диагнозе (имитирую, что поле заполнено на английском языке)
+Для поиска по ключевым словам в поле диагноз таблицы **'medical_history'** (имитирую, что поле заполнено на английском языке)
 
+```
+mysql> select * from medical_history where match (diagnostics) against ('rupture');
+ERROR 1191 (HY000): Can't find FULLTEXT index matching the column list
+
+mysql> create fulltext index fulltext_idx_medical_history_diagnostics on medical_history (diagnostics);
+Query OK, 0 rows affected, 1 warning (0.53 sec)
+Records: 0  Duplicates: 0  Warnings: 1
+
+mysql> select * from medical_history where match (diagnostics) against ('rupture');
+Empty set (0.00 sec)
+
+mysql> explain select * from medical_history where match (diagnostics) against ('rupture');
++----+-------------+-----------------+------------+----------+------------------------------------------+------------------------------------------+---------+-------+------+----------+-------------------------------+
+| id | select_type | table           | partitions | type     | possible_keys                            | key                                      | key_len | ref   | rows | filtered | Extra                         |
++----+-------------+-----------------+------------+----------+------------------------------------------+------------------------------------------+---------+-------+------+----------+-------------------------------+
+|  1 | SIMPLE      | medical_history | NULL       | fulltext | fulltext_idx_medical_history_diagnostics | fulltext_idx_medical_history_diagnostics | 0       | const |    1 |   100.00 | Using where; Ft_hints: sorted |
++----+-------------+-----------------+------------+----------+------------------------------------------+------------------------------------------+---------+-------+------+----------+-------------------------------+
+1 row in set, 1 warning (0.00 sec)
+
+mysql>
+```
