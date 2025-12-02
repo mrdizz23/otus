@@ -326,5 +326,3 @@ mydatabase> db.users.find({name: "Sarah Poole"}).explain()
   ok: 1
 }
 ```
-
-<img width="1332" height="824" alt="image" src="https://github.com/user-attachments/assets/3a3bb408-31b1-4e30-a764-c807ac31a9eb" />
