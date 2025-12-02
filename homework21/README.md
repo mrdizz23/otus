@@ -1,186 +1,330 @@
-0. Запускаю контейнер mongodb в Docker и подключаюсь к нему
+1. Запускаю контейнер mongodb в Docker и подключаюсь к нему
 
 ```
-[dizz@MUR-PC-3009-B2C ~]$ docker network create -d bridge mysql
-ecedd6dc2e7332ceb6d536d38f14efccfcda0f2f34c8d3d7e4761ae853434898
+(venv) [dizz@MUR-PC-3009-B2C ~]$ docker run --rm --name mongo -d -p 27017:27017 mongo
+Unable to find image 'mongo:latest' locally
+latest: Pulling from library/mongo
+dcec2d403c4e: Pull complete
+88373bcb58c1: Pull complete
+1732f2a4d259: Pull complete
+a89cc6fb1ead: Pull complete
+6dc84fd2f3ac: Pull complete
+20043066d3d5: Pull complete
+7230971360e4: Pull complete
+8a63055b2837: Pull complete
+Digest: sha256:7245ffb851d149dbfac67397caf91bae4974d899972f9fd1d8985fc6eea3c13d
+Status: Downloaded newer image for mongo:latest
+6895524b7d8023f53bedecfefae24e3a2fe9cb8481b52d9d1e6ce7b83bc717f8
+[dizz@MUR-PC-3009-B2C ~]$ docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED         STATUS         PORTS                                             NAMES
+6895524b7d80   mongo     "docker-entrypoint.s…"   7 seconds ago   Up 4 seconds   0.0.0.0:27017->27017/tcp, [::]:27017->27017/tcp   mongo
+
+(venv) [dizz@MUR-PC-3009-B2C ~]$ docker exec -it mongo mongosh --port 27017
+Current Mongosh Log ID: 692eac869e90d78fff9dc29c
+Connecting to:          mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.5.9
+Using MongoDB:          8.2.2
+Using Mongosh:          2.5.9
+
+For mongosh info see: https://www.mongodb.com/docs/mongodb-shell/
+
+------
+   The server generated these startup warnings when booting
+   2025-12-02T09:00:51.471+00:00: Using the XFS filesystem is strongly recommended with the WiredTiger storage engine. See http://dochub.mongodb.org/core/prodnotes-filesystem
+   2025-12-02T09:00:51.973+00:00: Access control is not enabled for the database. Read and write access to data and configuration is unrestricted
+   2025-12-02T09:00:51.974+00:00: For customers running the current memory allocator, we suggest changing the contents of the following sysfsFile
+   2025-12-02T09:00:51.974+00:00: For customers running the current memory allocator, we suggest changing the contents of the following sysfsFile
+   2025-12-02T09:00:51.974+00:00: We suggest setting the contents of sysfsFile to 0.
+   2025-12-02T09:00:51.974+00:00: vm.max_map_count is too low
+   2025-12-02T09:00:51.974+00:00: We suggest setting swappiness to 0 or 1, as swapping can cause performance problems.
+------
+
+test> show databases
+admin   40.00 KiB
+config  12.00 KiB
+local   40.00 KiB
+test>
 ```
 
-1. Готовлю 2 конфига для запуска контейнеров для мастера и реплики
+2. С помощью скрипта на python генерирую новую БД, коллекцию и генерирую 100 документов
 
 ```
-[dizz@MUR-PC-3009-B2C ~]$ cat my_master/config-file.cnf
-[mysqld]
-host_cache_size=0
-skip-name-resolve
-server_id = 1
-gtid_mode = ON
-enforce_gtid_consistency = ON
+(venv) [dizz@MUR-PC-3009-B2C ~]$ cat generate_data.py
+from pymongo import MongoClient
+from faker import Faker
+import random
 
-[dizz@MUR-PC-3009-B2C ~]$ cat my_replica/config-file.cnf
-[mysqld]
-host_cache_size=0
-skip-name-resolve
-server_id = 2
-read_only = ON
-gtid_mode = ON
-enforce_gtid_consistency = ON
+client = MongoClient('mongodb://localhost:27017/')
+db = client['mydatabase']
+collection = db['users']
+
+fake = Faker()
+Faker.seed(random.randint(0, 100))
+
+for _ in range(90):
+    user_data = {
+        'name': fake.name(),
+        'email': fake.email(),
+        'age': random.randint(18, 65),
+        'address': fake.address().replace("\\n", ", ")
+    }
+    collection.insert_one(user_data)
 ```
 
-2. Создаю контейнера мастера в только что созданной сети и примапливаю ему подготовленный конфиг
+3. Подключаюсь к инстансу и проверяю результаты генерации
 
 ```
-[dizz@MUR-PC-3009-B2C ~]$ docker run --rm --name mysql-master -p 3306:3306 --network=mysql -v /home/dizz/my_master:/etc/my.cnf.d -e MYSQL_ROOT_PASSWORD=123456 -e LANG=C.UTF-8 -d percona/percona-server:8.0
-4c77a114892f32d6abbad9efdf298e310af3219bd14ea97350511578c4f35542
-```
-2. Подключаюсь к инстансу мастера, смотрю GTID, создаю пользователя для репликации и даю ему нужные привелегии
+(venv) [dizz@MUR-PC-3009-B2C ~]$ docker exec -it mongo mongosh --port 27017 mydatabase
+Current Mongosh Log ID: 692eae4c0c4f8733949dc29c
+Connecting to:          mongodb://127.0.0.1:27017/mydatabase?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.5.9
+Using MongoDB:          8.2.2
+Using Mongosh:          2.5.9
 
-```
-[dizz@MUR-PC-3009-B2C ~]$ docker exec -it mysql-master mysql -u root -p123456
-mysql: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 12
-Server version: 8.0.43-34 Percona Server (GPL), Release 34, Revision e2841f91
+For mongosh info see: https://www.mongodb.com/docs/mongodb-shell/
 
-Copyright (c) 2009-2025 Percona LLC and/or its affiliates
-Copyright (c) 2000, 2025, Oracle and/or its affiliates.
+------
+   The server generated these startup warnings when booting
+   2025-12-02T09:00:51.471+00:00: Using the XFS filesystem is strongly recommended with the WiredTiger storage engine. See http://dochub.mongodb.org/core/prodnotes-filesystem
+   2025-12-02T09:00:51.973+00:00: Access control is not enabled for the database. Read and write access to data and configuration is unrestricted
+   2025-12-02T09:00:51.974+00:00: For customers running the current memory allocator, we suggest changing the contents of the following sysfsFile
+   2025-12-02T09:00:51.974+00:00: For customers running the current memory allocator, we suggest changing the contents of the following sysfsFile
+   2025-12-02T09:00:51.974+00:00: We suggest setting the contents of sysfsFile to 0.
+   2025-12-02T09:00:51.974+00:00: vm.max_map_count is too low
+   2025-12-02T09:00:51.974+00:00: We suggest setting swappiness to 0 or 1, as swapping can cause performance problems.
+------
 
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-mysql> show binary logs;
-+---------------+-----------+-----------+
-| Log_name      | File_size | Encrypted |
-+---------------+-----------+-----------+
-| binlog.000001 |       180 | No        |
-| binlog.000002 |       157 | No        |
-+---------------+-----------+-----------+
-2 rows in set (0.00 sec)
-
-mysql> show master status;
-+---------------+----------+--------------+------------------+-------------------+
-| File          | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set |
-+---------------+----------+--------------+------------------+-------------------+
-| binlog.000002 |      157 |              |                  |                   |
-+---------------+----------+--------------+------------------+-------------------+
-1 row in set (0.00 sec)
-
-mysql> create user repl@'%' identified with 'caching_sha2_password' by 'replpass';
-Query OK, 0 rows affected (0.02 sec)
-
-mysql> grant replication slave on *.* to repl@'%';
-Query OK, 0 rows affected (0.01 sec)
-
-mysql> show master status;
-+---------------+----------+--------------+------------------+------------------------------------------+
-| File          | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set                        |
-+---------------+----------+--------------+------------------+------------------------------------------+
-| binlog.000002 |      693 |              |                  | ab752fe1-aa89-11f0-b453-ca57696a816d:1-2 |
-+---------------+----------+--------------+------------------+------------------------------------------+
-1 row in set (0.00 sec)
+mydatabase> show collections
+users
+mydatabase> db.users.countDocuments({})
+100
 ```
 
-3. Аналогично стартую контейнер с репликой, подключаюсь к ней и стартую репликацию с мастера
+4. Пара простых запросов на получение данных
 
 ```
-[dizz@MUR-PC-3009-B2C ~]$ docker run --rm --name mysql-replica -p 3307:3306 --network=mysql -v /home/dizz/my_replica:/etc/my.cnf.d -e MYSQL_ROOT_PASSWORD=123456 -e LANG=C.UTF-8 -d percona/percona-server:8.0
-d486111397efee5273f8a298f2171a30ecef6aca5818404700d2ae3eed73339d
+(venv) [dizz@MUR-PC-3009-B2C ~]$ docker exec -it mongo mongosh --port 27017 mydatabase
+Current Mongosh Log ID: 692eaeb448277b66c19dc29c
+Connecting to:          mongodb://127.0.0.1:27017/mydatabase?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.5.9
+Using MongoDB:          8.2.2
+Using Mongosh:          2.5.9
 
-[dizz@MUR-PC-3009-B2C ~]$ docker exec -it mysql-replica mysql -u root -p123456
-mysql: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 9
-Server version: 8.0.43-34 Percona Server (GPL), Release 34, Revision e2841f91
+For mongosh info see: https://www.mongodb.com/docs/mongodb-shell/
 
-Copyright (c) 2009-2025 Percona LLC and/or its affiliates
-Copyright (c) 2000, 2025, Oracle and/or its affiliates.
+------
+   The server generated these startup warnings when booting
+   2025-12-02T09:00:51.471+00:00: Using the XFS filesystem is strongly recommended with the WiredTiger storage engine. See http://dochub.mongodb.org/core/prodnotes-filesystem
+   2025-12-02T09:00:51.973+00:00: Access control is not enabled for the database. Read and write access to data and configuration is unrestricted
+   2025-12-02T09:00:51.974+00:00: For customers running the current memory allocator, we suggest changing the contents of the following sysfsFile
+   2025-12-02T09:00:51.974+00:00: For customers running the current memory allocator, we suggest changing the contents of the following sysfsFile
+   2025-12-02T09:00:51.974+00:00: We suggest setting the contents of sysfsFile to 0.
+   2025-12-02T09:00:51.974+00:00: vm.max_map_count is too low
+   2025-12-02T09:00:51.974+00:00: We suggest setting swappiness to 0 or 1, as swapping can cause performance problems.
+------
 
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-mysql> stop replica
-    -> ;
-Query OK, 0 rows affected, 1 warning (0.00 sec)
-
-mysql> CHANGE REPLICATION SOURCE TO SOURCE_HOST='mysql-master', SOURCE_USER = 'repl', SOURCE_PASSWORD = 'replpass', SOURCE_AUTO_POSITION = 1, GET_SOURCE_PUBLIC_KEY = 1;
-Query OK, 0 rows affected, 2 warnings (0.06 sec)
-
-mysql> start replica;
-Query OK, 0 rows affected (0.09 sec)
+mydatabase> db.users.find().limit(1)
+[
+  {
+    _id: ObjectId('692eaca1a6d357a92743c547'),
+    name: 'Jason Rodriguez',
+    email: 'frazierkatherine@example.com',
+    age: 64,
+    address: '883 Berry Locks\nEast Jessicaville, VA 49792'
+  }
+]
+mydatabase> db.users.find({email: {$regex: "^f"}})
+[
+  {
+    _id: ObjectId('692eaca1a6d357a92743c547'),
+    name: 'Jason Rodriguez',
+    email: 'frazierkatherine@example.com',
+    age: 64,
+    address: '883 Berry Locks\nEast Jessicaville, VA 49792'
+  },
+  {
+    _id: ObjectId('692eaca1a6d357a92743c54c'),
+    name: 'Alejandra Johnson',
+    email: 'freemanjordan@example.net',
+    age: 48,
+    address: '841 Robinson Walks Apt. 792\nRichardview, IN 22323'
+  },
+  {
+    _id: ObjectId('692eae482b33900fb3073eba'),
+    name: 'Sarah Poole',
+    email: 'francisberry@example.org',
+    age: 40,
+    address: '0801 Faith Greens\nMarshallchester, MO 62128'
+  },
+  {
+    _id: ObjectId('692eae482b33900fb3073eca'),
+    name: 'Joshua Patton',
+    email: 'fcochran@example.com',
+    age: 61,
+    address: '675 Taylor Drives Suite 003\nWest Christopherfort, NM 71216'
+  },
+  {
+    _id: ObjectId('692eae482b33900fb3073efc'),
+    name: 'Charlotte Watson',
+    email: 'florestyler@example.com',
+    age: 41,
+    address: '87162 Price Hollow Apt. 571\nWest Josephville, AK 16632'
+  },
+  {
+    _id: ObjectId('692eae482b33900fb3073f02'),
+    name: 'Veronica Rojas',
+    email: 'florestoni@example.org',
+    age: 24,
+    address: '00714 Richard Wells\nPughview, NM 91354'
+  }
+]
 ```
 
-4. Смотрим статус репликации на реплике
+5. Обновление данных
 
 ```
-mysql> show replica status\G
-*************************** 1. row ***************************
-             Replica_IO_State: Waiting for source to send event
-                  Source_Host: mysql-master
-                  Source_User: repl
-                  Source_Port: 3306
-                Connect_Retry: 60
-              Source_Log_File: binlog.000002
-          Read_Source_Log_Pos: 693
-               Relay_Log_File: d486111397ef-relay-bin.000002
-                Relay_Log_Pos: 903
-        Relay_Source_Log_File: binlog.000002
-           Replica_IO_Running: Yes
-          Replica_SQL_Running: Yes
-              Replicate_Do_DB:
-          Replicate_Ignore_DB:
-           Replicate_Do_Table:
-       Replicate_Ignore_Table:
-      Replicate_Wild_Do_Table:
-  Replicate_Wild_Ignore_Table:
-                   Last_Errno: 0
-                   Last_Error:
-                 Skip_Counter: 0
-          Exec_Source_Log_Pos: 693
-              Relay_Log_Space: 1120
-              Until_Condition: None
-               Until_Log_File:
-                Until_Log_Pos: 0
-           Source_SSL_Allowed: No
-           Source_SSL_CA_File:
-           Source_SSL_CA_Path:
-              Source_SSL_Cert:
-            Source_SSL_Cipher:
-               Source_SSL_Key:
-        Seconds_Behind_Source: 0
-Source_SSL_Verify_Server_Cert: No
-                Last_IO_Errno: 0
-                Last_IO_Error:
-               Last_SQL_Errno: 0
-               Last_SQL_Error:
-  Replicate_Ignore_Server_Ids:
-             Source_Server_Id: 1
-                  Source_UUID: ab752fe1-aa89-11f0-b453-ca57696a816d
-             Source_Info_File: mysql.slave_master_info
-                    SQL_Delay: 0
-          SQL_Remaining_Delay: NULL
-    Replica_SQL_Running_State: Replica has read all relay log; waiting for more updates
-           Source_Retry_Count: 86400
-                  Source_Bind:
-      Last_IO_Error_Timestamp:
-     Last_SQL_Error_Timestamp:
-               Source_SSL_Crl:
-           Source_SSL_Crlpath:
-           Retrieved_Gtid_Set: ab752fe1-aa89-11f0-b453-ca57696a816d:1-2
-            Executed_Gtid_Set: ab752fe1-aa89-11f0-b453-ca57696a816d:1-2
-                Auto_Position: 1
-         Replicate_Rewrite_DB:
-                 Channel_Name:
-           Source_TLS_Version:
-       Source_public_key_path:
-        Get_Source_public_key: 1
-            Network_Namespace:
-1 row in set (0.00 sec)
+mydatabase> db.users.find({name: "Sarah Poole"})
+[
+  {
+    _id: ObjectId('692eae482b33900fb3073eba'),
+    name: 'Sarah Poole',
+    email: 'francisberry@example.org',
+    age: 40,
+    address: '0801 Faith Greens\nMarshallchester, MO 62128'
+  }
+]
+mydatabase> db.users.update({name: "Sarah Poole"}, {$set: {age:404}})
+DeprecationWarning: Collection.update() is deprecated. Use updateOne, updateMany, or bulkWrite.
+{
+  acknowledged: true,
+  insertedId: null,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+mydatabase> db.users.find({name: "Sarah Poole"})
+[
+  {
+    _id: ObjectId('692eae482b33900fb3073eba'),
+    name: 'Sarah Poole',
+    email: 'francisberry@example.org',
+    age: 404,
+    address: '0801 Faith Greens\nMarshallchester, MO 62128'
+  }
+]
 ```
-5. Проверяю работы репликации через создание базы данных (слева мастер, справа - реплика)
+
+6. Создание индекса и проверка его работы
+
+```
+mydatabase> db.users.find({name: "Sarah Poole"}).explain()
+{
+  explainVersion: '1',
+  queryPlanner: {
+    namespace: 'mydatabase.users',
+    parsedQuery: { name: { '$eq': 'Sarah Poole' } },
+    indexFilterSet: false,
+    queryHash: 'F4DDDCDC',
+    planCacheShapeHash: 'F4DDDCDC',
+    planCacheKey: 'E45FBFA1',
+    optimizationTimeMillis: 0,
+    maxIndexedOrSolutionsReached: false,
+    maxIndexedAndSolutionsReached: false,
+    maxScansToExplodeReached: false,
+    prunedSimilarIndexes: false,
+    winningPlan: {
+      isCached: false,
+      stage: 'COLLSCAN',
+      filter: { name: { '$eq': 'Sarah Poole' } },
+      direction: 'forward'
+    },
+    rejectedPlans: []
+  },
+  queryShapeHash: 'F969745E43D4E1C10C6940F2A8A0D59738840C4CF7251E6238A0A5270A3C8609',
+  command: {
+    find: 'users',
+    filter: { name: 'Sarah Poole' },
+    '$db': 'mydatabase'
+  },
+  serverInfo: {
+    host: '6895524b7d80',
+    port: 27017,
+    version: '8.2.2',
+    gitVersion: '594f839ceec1f4385be9a690131412d67b249a0a'
+  },
+  serverParameters: {
+    internalQueryFacetBufferSizeBytes: 104857600,
+    internalQueryFacetMaxOutputDocSizeBytes: 104857600,
+    internalLookupStageIntermediateDocumentMaxSizeBytes: 104857600,
+    internalDocumentSourceGroupMaxMemoryBytes: 104857600,
+    internalQueryMaxBlockingSortMemoryUsageBytes: 104857600,
+    internalQueryProhibitBlockingMergeOnMongoS: 0,
+    internalQueryMaxAddToSetBytes: 104857600,
+    internalDocumentSourceSetWindowFieldsMaxMemoryBytes: 104857600,
+    internalQueryFrameworkControl: 'trySbeRestricted',
+    internalQueryPlannerIgnoreIndexWithCollationForRegex: 1
+  },
+  ok: 1
+}
+mydatabase> db.users.createIndex({name: 1})
+name_1
+mydatabase> db.users.find({name: "Sarah Poole"}).explain()
+{
+  explainVersion: '1',
+  queryPlanner: {
+    namespace: 'mydatabase.users',
+    parsedQuery: { name: { '$eq': 'Sarah Poole' } },
+    indexFilterSet: false,
+    queryHash: 'F4DDDCDC',
+    planCacheShapeHash: 'F4DDDCDC',
+    planCacheKey: '34C29116',
+    optimizationTimeMillis: 0,
+    maxIndexedOrSolutionsReached: false,
+    maxIndexedAndSolutionsReached: false,
+    maxScansToExplodeReached: false,
+    prunedSimilarIndexes: false,
+    winningPlan: {
+      isCached: false,
+      stage: 'FETCH',
+      inputStage: {
+        stage: 'IXSCAN',
+        keyPattern: { name: 1 },
+        indexName: 'name_1',
+        isMultiKey: false,
+        multiKeyPaths: { name: [] },
+        isUnique: false,
+        isSparse: false,
+        isPartial: false,
+        indexVersion: 2,
+        direction: 'forward',
+        indexBounds: { name: [ '["Sarah Poole", "Sarah Poole"]' ] }
+      }
+    },
+    rejectedPlans: []
+  },
+  queryShapeHash: 'F969745E43D4E1C10C6940F2A8A0D59738840C4CF7251E6238A0A5270A3C8609',
+  command: {
+    find: 'users',
+    filter: { name: 'Sarah Poole' },
+    '$db': 'mydatabase'
+  },
+  serverInfo: {
+    host: '6895524b7d80',
+    port: 27017,
+    version: '8.2.2',
+    gitVersion: '594f839ceec1f4385be9a690131412d67b249a0a'
+  },
+  serverParameters: {
+    internalQueryFacetBufferSizeBytes: 104857600,
+    internalQueryFacetMaxOutputDocSizeBytes: 104857600,
+    internalLookupStageIntermediateDocumentMaxSizeBytes: 104857600,
+    internalDocumentSourceGroupMaxMemoryBytes: 104857600,
+    internalQueryMaxBlockingSortMemoryUsageBytes: 104857600,
+    internalQueryProhibitBlockingMergeOnMongoS: 0,
+    internalQueryMaxAddToSetBytes: 104857600,
+    internalDocumentSourceSetWindowFieldsMaxMemoryBytes: 104857600,
+    internalQueryFrameworkControl: 'trySbeRestricted',
+    internalQueryPlannerIgnoreIndexWithCollationForRegex: 1
+  },
+  ok: 1
+}
+```
 
 <img width="1332" height="824" alt="image" src="https://github.com/user-attachments/assets/3a3bb408-31b1-4e30-a764-c807ac31a9eb" />
