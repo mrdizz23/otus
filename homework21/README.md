@@ -60,7 +60,7 @@ collection = db['users']
 fake = Faker()
 Faker.seed(random.randint(0, 100))
 
-for _ in range(90):
+for _ in range(100):
     user_data = {
         'name': fake.name(),
         'email': fake.email(),
